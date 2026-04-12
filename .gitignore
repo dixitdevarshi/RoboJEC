@@ -1,0 +1,23 @@
+# Environment
+.env
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Runtime outputs — large, user-specific, never commit
+audio_recordings/
+personality_responses/
+personality_questions/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log

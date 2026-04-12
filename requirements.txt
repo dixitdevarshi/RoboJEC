@@ -1,0 +1,11 @@
+anthropic
+python-dotenv
+pyttsx3
+SpeechRecognition
+pyaudio
+numpy<2
+librosa
+torch==2.2.0
+faster-whisper
+nltk
+spacy
