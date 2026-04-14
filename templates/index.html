@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RoboJEC</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+  <style>
+    :root {
+      --bg:         #0e0e0e;
+      --surface:    #161616;
+      --border:     #2a2a2a;
+      --text:       #e8e0d4;
+      --muted:      #6b6259;
+      --accent:     #c8a96e;
+      --accent-dim: #7a6540;
+      --green:      #5a8a5a;
+      --red:        #8a4a4a;
+      --listening:  #4a7a9b;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 14px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── header ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 24px 40px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo {
+      font-family: 'DM Serif Display', serif;
+      font-size: 22px;
+      letter-spacing: 0.05em;
+      color: var(--accent);
+    }
+
+    .logo span {
+      color: var(--muted);
+      font-style: italic;
+      font-size: 13px;
+      margin-left: 12px;
+    }
+
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--muted);
+      transition: background 0.3s, box-shadow 0.3s;
+    }
+
+    .status-dot.active    { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+    .status-dot.listening { background: var(--listening); box-shadow: 0 0 8px var(--listening); animation: pulse 1.2s infinite; }
+
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    /* ── main layout ── */
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 280px;
+      grid-template-rows: 1fr auto;
+    }
+
+    /* ── stage ── */
+    .stage {
+      padding: 60px 60px 40px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    /* start screen */
+    .start-screen {
+      display: flex;
+      flex-direction: column;
+      gap: 40px;
+    }
+
+    .start-screen h1 {
+      font-family: 'DM Serif Display', serif;
+      font-size: 48px;
+      line-height: 1.1;
+      color: var(--text);
+      max-width: 540px;
+    }
+
+    .start-screen h1 em { color: var(--accent); font-style: italic; }
+
+    .start-screen p {
+      color: var(--muted);
+      line-height: 1.7;
+      max-width: 460px;
+      font-size: 13px;
+    }
+
+    .start-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--accent);
+      color: var(--bg);
+      border: none;
+      padding: 14px 32px;
+      font-family: 'DM Mono', monospace;
+      font-size: 13px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+      width: fit-content;
+    }
+
+    .start-btn:hover  { background: #d4b87a; }
+    .start-btn:active { transform: scale(0.98); }
+
+    /* interview screen */
+    .interview-screen {
+      display: none;
+      flex-direction: column;
+      gap: 32px;
+      height: 100%;
+    }
+
+    .phase-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--accent-dim);
+      border: 1px solid var(--accent-dim);
+      padding: 4px 12px;
+      width: fit-content;
+    }
+
+    .question-wrap {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 24px;
+    }
+
+    .question-label {
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    #question-text {
+      font-family: 'DM Serif Display', serif;
+      font-size: 32px;
+      line-height: 1.35;
+      color: var(--text);
+      max-width: 620px;
+      min-height: 80px;
+    }
+
+    /* waveform */
+    .listener-wrap {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      height: 40px;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .listener-wrap.visible { opacity: 1; }
+
+    .waveform {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      height: 28px;
+    }
+
+    .waveform span {
+      display: block;
+      width: 3px;
+      background: var(--listening);
+      border-radius: 2px;
+      height: 4px;
+    }
+
+    .waveform.active span:nth-child(1) { animation: wave 1.0s ease-in-out infinite 0.0s; }
+    .waveform.active span:nth-child(2) { animation: wave 1.0s ease-in-out infinite 0.1s; }
+    .waveform.active span:nth-child(3) { animation: wave 1.0s ease-in-out infinite 0.2s; }
+    .waveform.active span:nth-child(4) { animation: wave 1.0s ease-in-out infinite 0.15s; }
+    .waveform.active span:nth-child(5) { animation: wave 1.0s ease-in-out infinite 0.05s; }
+    .waveform.active span:nth-child(6) { animation: wave 1.0s ease-in-out infinite 0.25s; }
+    .waveform.active span:nth-child(7) { animation: wave 1.0s ease-in-out infinite 0.1s; }
+
+    @keyframes wave { 0%,100%{height:4px} 50%{height:22px} }
+
+    .listener-label { font-size: 11px; color: var(--listening); letter-spacing: 0.08em; }
+
+    .end-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      padding: 10px 20px;
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: color 0.2s, border-color 0.2s;
+      width: fit-content;
+      margin-top: auto;
+    }
+
+    .end-btn:hover { color: var(--red); border-color: var(--red); }
+
+    /* end screen */
+    .end-screen {
+      display: none;
+      flex-direction: column;
+      gap: 36px;
+      justify-content: center;
+    }
+
+    .end-screen h2 {
+      font-family: 'DM Serif Display', serif;
+      font-size: 36px;
+      color: var(--text);
+    }
+
+    .end-screen h2 em { color: var(--accent); font-style: italic; }
+
+    .end-stats {
+      display: flex;
+      gap: 48px;
+    }
+
+    .end-stat {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .end-stat .val {
+      font-family: 'DM Serif Display', serif;
+      font-size: 40px;
+      color: var(--accent);
+      line-height: 1;
+    }
+
+    .end-stat .lbl {
+      font-size: 10px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .end-actions {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .download-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--accent);
+      color: var(--bg);
+      border: none;
+      padding: 12px 24px;
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.2s;
+    }
+
+    .download-btn:hover { background: #d4b87a; }
+
+    .restart-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid var(--accent-dim);
+      padding: 12px 24px;
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .restart-btn:hover { background: rgba(200,169,110,0.07); }
+
+    /* ── sidebar ── */
+    .sidebar {
+      border-left: 1px solid var(--border);
+      padding: 40px 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+      overflow-y: auto;
+    }
+
+    .sidebar-section h3 {
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 14px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .profile-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 5px 0;
+    }
+
+    .profile-row .key { font-size: 11px; color: var(--muted); }
+    .profile-row .val {
+      font-size: 12px;
+      color: var(--text);
+      text-align: right;
+      max-width: 140px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* willingness */
+    .willingness-bar-wrap { display: flex; flex-direction: column; gap: 8px; }
+
+    .willingness-bar-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .willingness-bar-row .lbl { font-size: 11px; color: var(--muted); }
+
+    .bar-track {
+      height: 3px;
+      background: var(--border);
+      width: 100%;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      background: var(--accent);
+      width: 0%;
+      transition: width 0.6s ease, background 0.4s;
+    }
+
+    .bar-fill.low    { background: var(--red); }
+    .bar-fill.medium { background: var(--accent); }
+    .bar-fill.high   { background: var(--green); }
+
+    /* question counter */
+    .q-counter { display: flex; align-items: baseline; gap: 6px; }
+    .q-counter .num {
+      font-family: 'DM Serif Display', serif;
+      font-size: 42px;
+      color: var(--accent);
+      line-height: 1;
+    }
+    .q-counter .total { font-size: 18px; color: var(--muted); }
+
+    /* log */
+    .log-feed {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .log-feed::-webkit-scrollbar { width: 3px; }
+    .log-feed::-webkit-scrollbar-thumb { background: var(--border); }
+
+    .log-entry {
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.5;
+      padding: 3px 0;
+      border-bottom: 1px solid rgba(42,42,42,0.5);
+      animation: fadeIn 0.3s ease;
+    }
+
+    .log-entry.system { color: var(--accent-dim); }
+    .log-entry.user   { color: #7a8a7a; }
+
+    @keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
+
+    /* ── bottom bar ── */
+    .bottom-bar {
+      grid-column: 1 / -1;
+      border-top: 1px solid var(--border);
+      padding: 12px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    RoboJEC
+    <span>personality interview system</span>
+  </div>
+  <div class="status-pill">
+    <div class="status-dot" id="status-dot"></div>
+    <span id="status-text">idle</span>
+  </div>
+</header>
+
+<main>
+  <section class="stage">
+
+    <!-- START -->
+    <div class="start-screen" id="start-screen">
+      <h1>A conversation about<br><em>who you are.</em></h1>
+      <p>
+        RoboJEC will listen for your voice, introduce itself,
+        and conduct a personalised interview about your profession
+        and personal interests. The session is recorded for
+        research and training purposes.
+      </p>
+      <button class="start-btn" onclick="startInterview()">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><polygon points="2,1 13,7 2,13"/></svg>
+        Begin session
+      </button>
+    </div>
+
+    <!-- INTERVIEW -->
+    <div class="interview-screen" id="interview-screen">
+      <div class="phase-badge">
+        <span id="phase-text">Initialising</span>
+      </div>
+
+      <div class="question-wrap">
+        <div class="question-label">RoboJEC is saying</div>
+        <div id="question-text">Listening for activation…</div>
+
+        <div class="listener-wrap" id="listener-wrap">
+          <div class="waveform" id="waveform">
+            <span></span><span></span><span></span><span></span>
+            <span></span><span></span><span></span>
+          </div>
+          <span class="listener-label" id="listener-label">Listening</span>
+        </div>
+      </div>
+
+      <button class="end-btn" onclick="endInterview()">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><rect width="10" height="10"/></svg>
+        End interview
+      </button>
+    </div>
+
+    <!-- END -->
+    <div class="end-screen" id="end-screen">
+      <h2>Session <em>complete.</em></h2>
+
+      <div class="end-stats">
+        <div class="end-stat">
+          <div class="val" id="end-questions">—</div>
+          <div class="lbl">Questions asked</div>
+        </div>
+        <div class="end-stat">
+          <div class="val" id="end-duration">—</div>
+          <div class="lbl">Duration</div>
+        </div>
+      </div>
+
+      <div class="end-actions">
+        <button class="download-btn" onclick="downloadCSV()">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+            <path d="M6 8L2 4h3V0h2v4h3L6 8zM0 10h12v2H0v-2z"/>
+          </svg>
+          Download responses
+        </button>
+        <div id="download-msg" style="font-size:11px;color:var(--muted);margin-top:8px;display:none;"></div>
+        <button class="restart-btn" onclick="resetUI()">
+          Start new session
+        </button>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+
+    <div class="sidebar-section">
+      <h3>Guest profile</h3>
+      <div class="profile-row"><span class="key">Name</span>      <span class="val" id="p-name">—</span></div>
+      <div class="profile-row"><span class="key">Field</span>     <span class="val" id="p-field">—</span></div>
+      <div class="profile-row"><span class="key">Role</span>      <span class="val" id="p-role">—</span></div>
+      <div class="profile-row"><span class="key">Context</span>   <span class="val" id="p-context">—</span></div>
+      <div class="profile-row"><span class="key">Experience</span><span class="val" id="p-years">—</span></div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Engagement</h3>
+      <div class="willingness-bar-wrap">
+        <div class="willingness-bar-row">
+          <span class="lbl" id="w-level">—</span>
+        </div>
+        <div class="bar-track">
+          <div class="bar-fill" id="w-bar"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Progress</h3>
+      <div class="q-counter">
+        <span class="num" id="q-num">0</span>
+        <span class="total">questions</span>
+      </div>
+    </div>
+
+    <div class="sidebar-section" style="flex:1;min-height:0;">
+      <h3>Activity log</h3>
+      <div class="log-feed" id="log-feed"></div>
+    </div>
+
+  </aside>
+
+  <div class="bottom-bar">
+    <span>RoboJEC — Personality Interview System</span>
+    <span>IEEE ICCCMLA 2025 · Devarshi Dixit</span>
+  </div>
+</main>
+
+<script>
+  const socket = io();
+
+  let questionCount    = 0;
+  let sessionStart     = null;
+  let willingnessVals  = [];
+
+  // ── socket ────────────────────────────────────────────────────────────────
+
+  socket.on("connect", () => log("Connected", "system"));
+
+  socket.on("interview_status", d => {
+    if (d.status === "started") {
+      sessionStart = Date.now();
+      showScreen("interview");
+      setStatus("active", "running");
+    } else if (d.status === "ended") {
+      showEndScreen();
+    }
+  });
+
+  socket.on("system_speech", d => {
+    setQuestionText(d.text);
+    log("» " + truncate(d.text, 60), "system");
+    if (d.type === "question") {
+      questionCount++;
+      setText("q-num", questionCount);
+    }
+  });
+
+  socket.on("user_speech", d => {
+    if (d.text && d.text !== "quit")
+      log("← " + truncate(d.text, 60), "user");
+  });
+
+  socket.on("listening_state", d => {
+    if (d.state === "listening") {
+      showListener(true);
+      setStatus("listening", "listening");
+    } else {
+      showListener(false);
+      setStatus("active", d.state === "processing" ? "processing" : "running");
+    }
+  });
+
+  socket.on("willingness_update", d => {
+    willingnessVals.push(d.score);
+    updateWBar(d.score, d.level);
+  });
+
+  socket.on("user_profile", d => {
+    setText("p-name",    d.name    || "—");
+    setText("p-field",   d.field   || "—");
+    setText("p-role",    d.role    || "—");
+    setText("p-context", d.context || "—");
+    setText("p-years",   d.years ? `${d.years} yrs` : "—");
+  });
+
+  socket.on("phase_change", d => {
+    const labels = { professional:"Professional", hobby_discovery:"Personal Interests", hobby:"Hobby Questions" };
+    const label  = labels[d.phase] || d.label || d.phase;
+    setText("phase-text", label);
+    log(`[ ${label} ]`, "system");
+  });
+
+  socket.on("interview_complete", () => showEndScreen());
+  socket.on("interview_error",    d  => { log("Error: " + d.error, "system"); setStatus("idle","error"); });
+
+  // ── actions ───────────────────────────────────────────────────────────────
+
+  function startInterview() {
+    questionCount   = 0;
+    willingnessVals = [];
+    sessionStart    = null;
+    socket.emit("start_interview");
+    setQuestionText("Listening for activation…");
+    log("Session started", "system");
+  }
+
+  function endInterview() {
+    socket.emit("end_interview");
+    log("Ended by user", "system");
+  }
+
+  function resetUI() {
+    showScreen("start");
+    setStatus("idle", "idle");
+    ["p-name","p-field","p-role","p-context","p-years","w-level"].forEach(id => setText(id,"—"));
+    setText("w-score", "");
+    setText("q-num", "0");
+    document.getElementById("w-bar").style.width = "0%";
+    document.getElementById("log-feed").innerHTML = "";
+    questionCount = 0;
+  }
+
+  // ── helpers ───────────────────────────────────────────────────────────────
+
+  function showScreen(name) {
+    document.getElementById("start-screen").style.display     = name==="start"     ? "flex" : "none";
+    document.getElementById("interview-screen").style.display = name==="interview" ? "flex" : "none";
+    document.getElementById("end-screen").style.display       = name==="end"       ? "flex" : "none";
+  }
+
+  function showEndScreen() {
+    const elapsed = sessionStart ? Math.round((Date.now()-sessionStart)/1000) : 0;
+    setText("end-questions", questionCount);
+    setText("end-duration",  `${Math.floor(elapsed/60)}m ${elapsed%60}s`);
+    showScreen("end");
+    setStatus("idle", "complete");
+  }
+
+  function setStatus(cls, txt) {
+    document.getElementById("status-dot").className = "status-dot " + cls;
+    setText("status-text", txt);
+  }
+
+  function setQuestionText(text) {
+    const el = document.getElementById("question-text");
+    const words = text.split(" ");
+    el.textContent = "";
+    let i = 0;
+    const tick = setInterval(() => {
+      if (i >= words.length) { clearInterval(tick); return; }
+      el.textContent += (i > 0 ? " " : "") + words[i++];
+    }, 55);
+  }
+
+  function showListener(on) {
+    const wrap = document.getElementById("listener-wrap");
+    const wf   = document.getElementById("waveform");
+    wrap.classList.toggle("visible", on);
+    wf.classList.toggle("active", on);
+    document.getElementById("listener-label").textContent = on ? "Listening…" : "Listening";
+  }
+
+  function updateWBar(score, level) {
+    const bar = document.getElementById("w-bar");
+    const map = { low_willingness:"low", medium_willingness:"medium", high_willingness:"high" };
+    const lbl = { low_willingness:"Low", medium_willingness:"Medium", high_willingness:"High" };
+    bar.style.width  = score + "%";
+    bar.className    = "bar-fill " + (map[level] || "medium");
+    setText("w-level", lbl[level] || "—");
+    // score number intentionally not shown
+  }
+
+  function log(msg, type) {
+    const feed  = document.getElementById("log-feed");
+    const entry = document.createElement("div");
+    entry.className  = "log-entry " + (type||"");
+    entry.textContent = msg;
+    feed.appendChild(entry);
+    feed.scrollTop = feed.scrollHeight;
+  }
+
+  function setText(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val;
+  }
+
+  function truncate(s, n) { return s.length > n ? s.slice(0,n)+"…" : s; }
+
+  function downloadCSV() {
+    const msg = document.getElementById("download-msg");
+    fetch("/download-csv")
+      .then(r => {
+        if (r.ok) {
+          return r.blob().then(blob => {
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement("a");
+            a.href     = url;
+            a.download = "robojec_responses.csv";
+            a.click();
+            URL.revokeObjectURL(url);
+            msg.style.display = "none";
+          });
+        } else {
+          return r.json().then(d => {
+            msg.textContent   = d.error || "No responses available for this session.";
+            msg.style.display = "block";
+          });
+        }
+      })
+      .catch(() => {
+        msg.textContent   = "Could not connect to server.";
+        msg.style.display = "block";
+      });
+  }
+</script>
+</body>
+</html>

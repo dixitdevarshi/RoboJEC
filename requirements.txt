@@ -9,3 +9,5 @@ torch==2.2.0
 faster-whisper
 nltk
 spacy
+flask
+flask-socketio
