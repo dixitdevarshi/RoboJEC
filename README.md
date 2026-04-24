@@ -1,4 +1,4 @@
-# RoboJEC
+# Intelligent Conversational Brain RoboJEC : A Personality Conversation System
 
 A voice-based personality interview system that conducts adaptive, conversational interviews using speech recognition and the Claude API.
 
