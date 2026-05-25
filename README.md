@@ -104,7 +104,7 @@ This project was developed as part of undergraduate research at Jabalpur Enginee
 
 ## Authors
 
-Sanskriti Jain
+Sanskriti Jain/n
 Devarshi Dixit
 
 
