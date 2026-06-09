@@ -98,13 +98,12 @@ python main.py
 
 This project was developed as part of undergraduate research at Jabalpur Engineering College.
 
-**Project guide:** Dr. Agya Mishra
-
 ---
 
 ## Authors
 
 Sanskriti Jain,
+Dr. Agya Mishra,
 Devarshi Dixit
 
 
