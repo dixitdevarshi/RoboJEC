@@ -32,6 +32,72 @@ After the interview, responses are saved to CSV and JSON, along with timing data
 
 ---
 
+## System Architecture
+
+```mermaid
+flowchart TD
+    A["User / Microphone"] --> B["PyAudio + SpeechRecognition"]
+
+    B --> C{"Type of speech"}
+
+    C -->|"Wake signal / short opening answers"| D["Google Speech Recognition"]
+    C -->|"Long interview responses"| E["faster-whisper base<br/>CPU + int8 + VAD"]
+
+    D --> F["Interview Controller"]
+    E --> F
+
+    F --> G["Claude 3 Haiku"]
+
+    G --> G1["Profession parsing"]
+    G --> G2["Question selection / improvement"]
+    G --> G3["Follow-up generation"]
+    G --> G4["Rephrase generation"]
+    G --> G5["Hobby extraction"]
+
+    G --> H["Structured result"]
+    H --> I["Deterministic Python Validation"]
+
+    I --> F
+
+    J["Cached Question Pools<br/>75 questions per profession"] --> F
+
+    B --> K["Willingness Analyzer"]
+    K --> K1["Volume"]
+    K --> K2["Zero-Crossing Rate"]
+    K --> K3["Silence / Duration"]
+    K1 --> L["Engagement Score<br/>Low / Medium / High"]
+    K2 --> L
+    K3 --> L
+    L --> F
+
+    F --> M["3-Phase Interview Pipeline"]
+
+    M --> M1["Phase 1<br/>Professional"]
+    M --> M2["Phase 2<br/>Hobby Discovery"]
+    M --> M3["Phase 3<br/>Hobby Questions"]
+
+    M --> N["pyttsx3<br/>Text-to-Speech"]
+    N --> O["Spoken Question"]
+
+    M --> P["Session Output"]
+    P --> P1["Responses CSV"]
+    P --> P2["Timing CSV"]
+    P --> P3["Audio Recordings"]
+
+    Q["Flask + Flask-SocketIO<br/>Web Dashboard"] <--> F
+```
+
+RoboJEC separates flexible language understanding from deterministic control.
+
+- **Google Speech Recognition** handles short opening utterances.
+- **faster-whisper** transcribes longer interview responses.
+- **Claude** handles language-heavy tasks such as profession parsing, question selection, follow-ups and rephrasing.
+- **Python rules** validate decisions that need consistent behaviour.
+- An audio-based **willingness heuristic** influences which question pool is used.
+- The interview controller coordinates all three phases and saves responses and timing information.
+
+---
+
 ## Tech stack
 
 - **Speech recognition** — [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (`base` model, CPU) for interview responses; Google SR for short utterances
